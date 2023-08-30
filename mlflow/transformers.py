@@ -144,8 +144,9 @@ def get_default_pip_requirements(model) -> List[str]:
     """
 
     from transformers import FlaxPreTrainedModel, PreTrainedModel, TFPreTrainedModel
+    from peft import PeftModel, PeftModelForCausalLM
 
-    if not isinstance(model, (TFPreTrainedModel, FlaxPreTrainedModel, PreTrainedModel)):
+    if not isinstance(model, (TFPreTrainedModel, FlaxPreTrainedModel, PreTrainedModel, PeftModel, PeftModelForCausalLM)):
         raise MlflowException(
             "The supplied model type is unsupported. The model must be one of: "
             "PreTrainedModel, TFPreTrainedModel, or FlaxPreTrainedModel",
@@ -877,8 +878,13 @@ def _load_model(path: str, flavor_config, return_type: str, device=None, **kwarg
     Loads components from a locally serialized ``Pipeline`` object.
     """
     import transformers
+    import peft
 
-    model_instance = getattr(transformers, flavor_config[_PIPELINE_MODEL_TYPE_KEY])
+    if flavor_config[_PIPELINE_MODEL_TYPE_KEY].startswith("Peft"):
+        model_instance = getattr(peft, flavor_config[_PIPELINE_MODEL_TYPE_KEY])
+    else:
+        model_instance = getattr(transformers, flavor_config[_PIPELINE_MODEL_TYPE_KEY])
+
     local_path = pathlib.Path(path)
     # NB: Path resolution for models that were saved prior to 2.4.1 release when the pathing for
     #     the saved pipeline or component artifacts was handled by duplicate entries for components
@@ -1225,6 +1231,7 @@ def _get_engine_type(model):
     deep learning framework backends: ``tensorflow``, ``torch``, or ``flax``.
     """
     from transformers import FlaxPreTrainedModel, PreTrainedModel, TFPreTrainedModel
+    from peft import PeftModel
 
     for cls in model.__class__.__mro__:
         if issubclass(cls, TFPreTrainedModel):
@@ -1233,7 +1240,8 @@ def _get_engine_type(model):
             return "torch"
         elif issubclass(cls, FlaxPreTrainedModel):
             return "flax"
-
+        elif issubclass(cls, PeftModel):
+            return "torch"
 
 def _get_base_model_architecture(model_or_pipeline):
     """
@@ -1482,8 +1490,13 @@ class _TransformersModel(NamedTuple):
             TFPreTrainedModel,
         )
 
+        from peft import (
+            PeftModel,
+            PeftModelForCausalLM,
+        )
+
         validation = [
-            (model, "model", (PreTrainedModel, TFPreTrainedModel, FlaxPreTrainedModel)),
+            (model, "model", (PreTrainedModel, TFPreTrainedModel, FlaxPreTrainedModel, PeftModel, PeftModelForCausalLM)),
             (tokenizer, "tokenizer", PreTrainedTokenizerBase),
             (
                 feature_extractor,
