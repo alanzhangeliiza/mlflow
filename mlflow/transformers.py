@@ -78,6 +78,7 @@ from mlflow.utils.requirements_utils import _get_pinned_requirement
 
 FLAVOR_NAME = "transformers"
 
+_BASE_MODEL_KEY = "base_model"
 _CARD_TEXT_FILE_NAME = "model_card.md"
 _CARD_DATA_FILE_NAME = "model_card_data.yaml"
 _COMPONENTS_BINARY_KEY = "components"
@@ -931,7 +932,10 @@ def _load_model(path: str, flavor_config, return_type: str, device=None, **kwarg
 
     if not MLFLOW_HUGGINGFACE_DISABLE_ACCELERATE_FEATURES.get():
         try:
-            model = model_instance.from_pretrained(model_path, **accelerate_model_conf)
+            if _BASE_MODEL_KEY in kwargs:
+                model = model_instance.from_pretrained(kwargs[_BASE_MODEL_KEY], model_path, **accelerate_model_conf)
+            else:
+                model = model_instance.from_pretrained(model_path, **accelerate_model_conf)
         except (ValueError, TypeError, NotImplementedError, ImportError):
             # NB: ImportError is caught here in the event that `accelerate` is not installed
             # on the system, which will raise if `low_cpu_mem_usage` is set or the argument
